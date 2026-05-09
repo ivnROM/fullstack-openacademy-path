@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant browser
+    participant server
+
+    Note right of browser: The browser intercepts the form submit, creates a new note, adds it to the local notes list and redraws the UI.
+    browser->>server: POST https://studies.cs.helsinki.fi/exampleapp/new_note_spa
+    Note left of server: The server receives note data in JSON format, pushes note into array if valid
+    activate server
+    server-->>browser: Response body and status code
+    deactivate server
+
+    Note right of browser: The browser stays on the same page. No further HTTP requests are needed.
