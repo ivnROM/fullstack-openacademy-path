@@ -1,12 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import personService from "./services/persons";
+import Notification from "./components/Notification";
+import "./index.css";
 
-const Persons = ({ personsToShow }) => {
+const Persons = ({ personsToShow, setPersons, persons }) => {
+  const deletePerson = (person) => {
+    if (window.confirm(`delete ${person.name}?`)) {
+      personService
+        .deletePerson(person)
+        .then((response) =>
+          setPersons(persons.filter((person) => response.id !== person.id)),
+        );
+    }
+  };
+
   return personsToShow.map((person) => (
-    <p key={person.name}>
-      {person.name} {person.number}{" "}
+    <p key={person.id}>
+      {person.name} {person.number}
+      <button onClick={() => deletePerson(person)}>delete</button>
     </p>
   ));
 };
+
 const Filter = ({ filterName, setFilterName, setShowAll }) => {
   const handleFilterChange = (event) => {
     const newFilterName = event.target.value;
@@ -22,7 +37,7 @@ const Filter = ({ filterName, setFilterName, setShowAll }) => {
   );
 };
 
-const PersonForm = ({ persons, setPersons }) => {
+const PersonForm = ({ persons, setPersons, setNotification, setSuccess }) => {
   const [newName, setNewName] = useState("");
   const [newNumber, setNewNumber] = useState("");
 
@@ -36,14 +51,49 @@ const PersonForm = ({ persons, setPersons }) => {
 
   const addPerson = (event) => {
     event.preventDefault();
-    const found = persons.some((person) => person.name === newName);
+    const found = persons.find((person) => person.name === newName);
 
     if (found) {
-      alert(`${newName} is already added to phonebook`);
-      return;
+      if (
+        window.confirm(
+          `${found.name} is already added to phonebook, replace the old number with a new one?`,
+        )
+      ) {
+        personService
+          .replacePersonNumber(found, newNumber)
+          .then((response) => {
+            setPersons(
+              persons.map((person) =>
+                found.id === person.id ? response : person,
+              ),
+            );
+          })
+          .catch(() => {
+            setSuccess(false);
+            setNotification(
+              `Person ${found.name} was already removed from server`,
+            );
+            setTimeout(() => setNotification(null), 5000);
+            return;
+          });
+        setSuccess(true);
+        setNotification(`Number of ${found.name} changed`);
+        return;
+      } else {
+        return;
+      }
     }
 
-    setPersons(persons.concat({ name: newName, number: newNumber }));
+    const newPerson = {
+      name: newName,
+      number: newNumber,
+    };
+
+    personService
+      .createPerson(newPerson)
+      .then((response) => setPersons(persons.concat(response)));
+    setSuccess(true);
+    setNotification(`Added ${newPerson.name}`);
   };
 
   return (
@@ -62,15 +112,16 @@ const PersonForm = ({ persons, setPersons }) => {
 };
 
 const App = () => {
-  const [persons, setPersons] = useState([
-    { name: "Arto Hellas", number: "040-123456", id: 1 },
-    { name: "Ada Lovelace", number: "39-44-5323523", id: 2 },
-    { name: "Dan Abramov", number: "12-43-234345", id: 3 },
-    { name: "Mary Poppendieck", number: "39-23-6423122", id: 4 },
-  ]);
+  const [persons, setPersons] = useState([]);
+
+  useEffect(() => {
+    personService.getAll().then((response) => setPersons(response));
+  }, []);
 
   const [showAll, setShowAll] = useState(true);
   const [filterName, setFilterName] = useState("");
+  const [notification, setNotification] = useState(null);
+  const [success, setSuccess] = useState(true);
 
   const personsToShow = showAll
     ? persons
@@ -81,15 +132,25 @@ const App = () => {
   return (
     <div>
       <h2>Phonebook</h2>
+      <Notification message={notification} isSuccessful={success} />
       <Filter
         filterName={filterName}
         setFilterName={setFilterName}
         setShowAll={setShowAll}
       />
       <h3>add a new</h3>
-      <PersonForm persons={persons} setPersons={setPersons} />
+      <PersonForm
+        persons={persons}
+        setPersons={setPersons}
+        setNotification={setNotification}
+        setSuccess={setSuccess}
+      />
       <h3>Numbers</h3>
-      <Persons personsToShow={personsToShow} />
+      <Persons
+        personsToShow={personsToShow}
+        setPersons={setPersons}
+        persons={persons}
+      />
     </div>
   );
 };
